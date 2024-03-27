@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas và Video</title>
+<style>
+    #videoCanvasContainer {
+        display: flex;
+    }
+
+    #videoCanvasContainer canvas {
+        border: 1px solid black;
+    }
+</style>
+</head>
+<body>
+<div id="videoCanvasContainer">
+    <video id="video" width="400" height="300" controls>
+        <source src="test.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <canvas id="canvas" width="400" height="300"></canvas>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    video.addEventListener('play', function(){
+        drawEdge();
+    });
+
+    function drawEdge() {
+        if(video.paused || video.ended) return false;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        const sobelData = Sobel(imageData);
+        const sobelImageData = sobelData.toImageData();
+        
+        ctx.putImageData(sobelImageData, 0, 0);
+        
+        requestAnimationFrame(drawEdge);
+    }
+
+    function Sobel(imageData) {
+        const grayscale = new Uint8Array(imageData.width * imageData.height);
+        const sobelData = new SobelImageData(imageData.width, imageData.height);
+        
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            const avg = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+            grayscale[i / 4] = avg;
+        }
+        
+        for (let x = 1; x < imageData.width - 1; x++) {
+            for (let y = 1; y < imageData.height - 1; y++) {
+                const pixelX = (x + y * imageData.width) * 4;
+                
+                const gx = (-grayscale[(x - 1) + (y - 1) * imageData.width]) + 
+                           (grayscale[(x + 1) + (y - 1) * imageData.width]) +
+                           (-2 * grayscale[(x - 1) + y * imageData.width]) + 
+                           (2 * grayscale[(x + 1) + y * imageData.width]) +
+                           (-grayscale[(x - 1) + (y + 1) * imageData.width]) + 
+                           (grayscale[(x + 1) + (y + 1) * imageData.width]);
+
+                const gy = (-grayscale[(x - 1) + (y - 1) * imageData.width]) + 
+                           (-2 * grayscale[x + (y - 1) * imageData.width]) +
+                           (-grayscale[(x + 1) + (y - 1) * imageData.width]) + 
+                           (grayscale[(x - 1) + (y + 1) * imageData.width]) +
+                           (2 * grayscale[x + (y + 1) * imageData.width]) + 
+                           (grayscale[(x + 1) + (y + 1) * imageData.width]);
+
+                const color = Math.sqrt(gx * gx + gy * gy);
+                sobelData.setPixel(x, y, color, color, color, 255);
+            }
+        }
+        return sobelData;
+    }
+
+    function SobelImageData(width, height) {
+        this.width = width;
+        this.height = height;
+        this.data = new Uint8ClampedArray(width * height * 4);
+
+        this.setPixel = function(x, y, r, g, b, a) {
+            const index = (x + y * this.width) * 4;
+            this.data[index] = r;
+            this.data[index + 1] = g;
+            this.data[index + 2] = b;
+            this.data[index + 3] = a;
+        };
+
+        this.toImageData = function() {
+            return new ImageData(this.data, this.width, this.height);
+        };
+    }
+</script>
+</body>
+</html>
